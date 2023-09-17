@@ -5,8 +5,12 @@ from chromadb.utils import embedding_functions
 import replicate
 import os
 import time
+from dotenv import load_dotenv
 import gradio as gr
 
+# init env vars
+load_dotenv()
+print(os.getenv("OPENAI_API_KEY"),os.getenv("REPLICATE_API_TOKEN"))
 class VectorLoader:
     def __init__(self,tenant_name):
         self.tenant_name = tenant_name
@@ -49,11 +53,16 @@ class VectorLoader:
                 )
 
 if __name__ == "__main__":
-    op = VectorLoader("opeani")
+    op = VectorLoader("elham")
+    llama70 = "meta/codellama-13b-python:f7f3a7e9876784f44c970ce0fc0d3aa792ac1570752b9f3b610d6e8ce0bf3220"
+    codellamapython13 = "meta/codellama-13b-python:f7f3a7e9876784f44c970ce0fc0d3aa792ac1570752b9f3b610d6e8ce0bf3220"
+    llama13 = "meta/llama-2-13b-chat:f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d"
     # op.load_documents()
-    template = "You are an AI software engineer at company. Your task is to help new company software engineers understand company codebase and documentation given the context you will be asked, help them only with what is given to you from the context if the context given is not enough, answer with these technologies rest framework, django, nx also by helpful and concise include emojis ,given the context: {context}"
-    def get_response(prompt):
-        qq = op.collection.query(query_texts=[f"{prompt}"],n_results=3)
+    template = "You are an AI software engineer at {company}. Your task is to help new {company} software engineers understand codebase and documentation given the context you will be asked, help them only with what is given to you from the context if the context given is not enough, answer with these technologies (rest framework, django, nx) also be helpful and concise include emojis ! ,given the context: {context}"
+
+    examples = ["hey, what can you help me with ?"]
+    def get_response(message, history):
+        qq = op.collection.query(query_texts=[f"{message}"],n_results=3)
         final_qq = []
         for q in range(len(qq["documents"])):
                 # we wont take any result that it is not as close.
@@ -61,23 +70,23 @@ if __name__ == "__main__":
                     final_qq.append(qq["documents"][0][q])
         context = ''.join(final_qq)
         out = replicate.run(
-        "meta/llama-2-13b-chat:f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d",
+            llama13,
         input = {
-            "max_new_tokens":200,
+            "max_new_tokens":512,
             "temperature":0.75,
             "top_p":0.95,
             "repetition_penalty":1.1,
-            "prompt":prompt,
+            "prompt":message,
             "system_prompt": template.replace("{context}",context).replace("{company}",op.tenant_name),
             "stop_sequences":"<end>,<stop>,\\n"
         }
-        )
-        return out
+        ) 
+        # queue only accpets generator function which is (get response), then we yeild every chunk of the iterator
+        p =""
+        for x in out:
+            p += x
+            yield p
 
-    examples = ["hey, what can you help me with ?"]
-    def random_response(message, history):
-        return "".join(get_response(message))
+    demo = gr.ChatInterface(get_response,examples=examples)
 
-    demo = gr.ChatInterface(random_response,examples=examples)
-
-    demo.launch(share=False)
+    demo.queue().launch(share=False)
