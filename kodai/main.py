@@ -53,7 +53,7 @@ class VectorLoader:
                 )
 
 if __name__ == "__main__":
-    op = VectorLoader("elham")
+    op = VectorLoader("openai")
     llama70 = "meta/codellama-13b-python:f7f3a7e9876784f44c970ce0fc0d3aa792ac1570752b9f3b610d6e8ce0bf3220"
     codellamapython13 = "meta/codellama-13b-python:f7f3a7e9876784f44c970ce0fc0d3aa792ac1570752b9f3b610d6e8ce0bf3220"
     llama13 = "meta/llama-2-13b-chat:f4e2de70d66816a838a89eeeb621910adffb0dd0baba3976c96980970978018d"
@@ -62,7 +62,12 @@ if __name__ == "__main__":
 
     examples = ["hey, what can you help me with ?"]
     def get_response(message, history):
-        qq = op.collection.query(query_texts=[f"{message}"],n_results=3)
+        message = f"[INST]{message}[/INST]"
+        ff = " "
+        for dia in history:
+            ff += f"[INST]{dia[0]}[/INST] {dia[1]}"
+        ff += message
+        qq = op.collection.query(query_texts=[f"{message}"],n_results=5)
         final_qq = []
         for q in range(len(qq["documents"])):
                 # we wont take any result that it is not as close.
@@ -73,10 +78,10 @@ if __name__ == "__main__":
             llama13,
         input = {
             "max_new_tokens":512,
-            "temperature":0.75,
+            "temperature":0.7,
             "top_p":0.95,
             "repetition_penalty":1.1,
-            "prompt":message,
+            "prompt":ff,
             "system_prompt": template.replace("{context}",context).replace("{company}",op.tenant_name),
             "stop_sequences":"<end>,<stop>,\\n"
         }
@@ -89,4 +94,4 @@ if __name__ == "__main__":
 
     demo = gr.ChatInterface(get_response,examples=examples)
 
-    demo.queue().launch(share=False)
+    demo.queue().launch(share=True)
